@@ -8,7 +8,36 @@ QUOTE = 'quote'
 DEFINITION = 'define'
 CONDITIONAL = 'if'
 SYMBOL = str
-Env = dict
+SET = 'set!'
+LAMBDA = 'lambda'
+
+
+class Procedure(object):
+    "Data structure to represent a procedure in Scheme"
+    def __init__(self, params, body, env):
+        self.params = params
+        self.body = body
+        self.env = env
+
+    def __call__(self, *args):
+        env = Env(self.params, args, self.env)
+        return eval(self.body, env)
+
+
+class Env(dict):
+    """
+    An environment to provide context for various
+    operations by the interpreter
+    """
+    def __init__(self, params=(), args=(), parent=None):
+        self.update(zip(params, args))
+        self.parent = parent
+
+    def find(self, var):
+        if var in self:
+            return self
+        else:
+            return self.parent.find(var)
 
 
 def standard_env():
@@ -109,7 +138,7 @@ def eval(exp, env=global_env):
     "Evaluates a expression in context of \
     an environment"
     if isinstance(exp, SYMBOL):
-        return env[exp]
+        return env.find(exp)[exp]
     elif not isinstance(exp, list):
         # Return as is, if not an expression
         return exp
@@ -118,11 +147,17 @@ def eval(exp, env=global_env):
         return _exp
     elif exp[0] == DEFINITION:
         (_, variable, value) = exp
-        env[variable] = value
+        env[variable] = eval(value, env)
     elif exp[0] == CONDITIONAL:
         (_, test, conseq, alt) = exp
         _exp = conseq if eval(test, env) else alt
         return eval(_exp, env)
+    elif exp[0] == SET:
+        (_, var, val) = exp
+        env.find(var)[var] = val
+    elif exp[0] == LAMBDA:
+        (_, params, body) = exp
+        return Procedure(params, body, env)
     else:
         # Parse a procedure call
         procedure = eval(exp[0], env)
