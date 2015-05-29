@@ -58,15 +58,15 @@ class LispyTest(unittest.TestCase):
         self.assertEqual(result, '123')
 
     def test_lambda(self):
-        exp1 = "(define square (lambda x (* x x)))"
+        exp1 = "(define square (lambda (x) (* x x)))"
         eval(parse(exp1))
         exp2 = "(square 10)"
         result = eval(parse(exp2))
         self.assertEqual(result, 100)
 
     def test_recursive_function(self):
-        exp1 = "(define repeat (lambda f (lambda x (f (f x)))))"
-        exp2 = "(define square (lambda x (* x x)))"
+        exp1 = "(define repeat (lambda (f) (lambda (x) (f (f x)))))"
+        exp2 = "(define square (lambda (x) (* x x)))"
         exp3 = "((repeat square) 2)"
         eval(parse(exp1))
         eval(parse(exp2))
