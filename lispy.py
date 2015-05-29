@@ -102,6 +102,29 @@ QUOTES = {
 }
 
 
+def callcc(proc):
+    """Call proc with continuation
+
+    Note: This works for simple escape only.
+
+    For more info on call with continuations, refer
+    http://community.schemewiki.org/?call-with-current-continuation
+    """
+    warning = RuntimeWarning("Continuation called")
+
+    def throw(val):
+        warning.retval = val
+        raise warning
+
+    try:
+        return proc(throw)
+    except RuntimeWarning as w:
+        if w is warning:
+            return warning.retval
+        else:
+            raise w
+
+
 def standard_env():
     "An environment with some Scheme standard procedures."
     import math
@@ -140,6 +163,7 @@ def standard_env():
         'procedure?': callable,
         'round':   round,
         'symbol?': lambda x: isinstance(x, Symbol),
+        'call/cc': callcc
     })
     return env
 
@@ -237,21 +261,32 @@ def eval(exp, env=global_env):
     elif exp[0] == DEFINE:
         (_, variable, value) = exp
         env[variable] = eval(value, env)
+        return None
     elif exp[0] == IF:
         (_, test, conseq, alt) = exp
-        _exp = conseq if eval(test, env) else alt
-        return eval(_exp, env)
+        exp = conseq if eval(test, env) else alt
     elif exp[0] == SET:
         (_, var, val) = exp
-        env.find(var)[var] = val
+        env.find(var)[var] = eval(val, env)
+        return None
     elif exp[0] == LAMBDA:
         (_, params, body) = exp
         return Procedure(params, body, env)
+    elif exp[0] == BEGIN:
+        for _exp in exp[1:-1]:
+            eval(_exp, env)
+        exp = exp[-1]
     else:
         # Parse a procedure call
-        procedure = eval(exp[0], env)
-        args = [eval(arg, env) for arg in exp[1:]]
-        return procedure(*args)
+        args = [eval(arg, env) for arg in exp]
+        proc = args.pop(0)
+        if isinstance(proc, Procedure):
+            # Using exp and env together as accumulators
+            # to remove recursion limit
+            exp = proc.body
+            env = Env(proc.params, args, proc.env)
+        else:
+            return proc(*args)
 
 
 def schemeify(val):
