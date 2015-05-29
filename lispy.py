@@ -35,7 +35,11 @@ class Env(dict):
     operations by the interpreter
     """
     def __init__(self, params=(), args=(), parent=None):
-        self.update(zip(params, args))
+        if isinstance(params, Symbol):
+            self.update({params: list(args)})
+            print {params: list(args)}
+        else:
+            self.update(zip(params, args))
         self.parent = parent
 
     def find(self, var):
@@ -125,6 +129,29 @@ def callcc(proc):
             raise w
 
 
+def arithmetic(op):
+    "Perform arithmetic operation on multiple arguments"
+    def wrapper(*args):
+        if op == '+':
+            return sum(args)
+        elif op == '-':
+            result = args[0]
+            for arg in args[1:]:
+                result = result - arg
+            return result
+        elif op == '*':
+            result = 1
+            for arg in args:
+                result = arg * result
+            return result
+        elif op == '/':
+            result = args[0]
+            for arg in args[1:]:
+                result = result / float(arg)
+            return result
+    return wrapper
+
+
 def standard_env():
     "An environment with some Scheme standard procedures."
     import math
@@ -133,10 +160,10 @@ def standard_env():
     # Add math functions to env
     env.update(vars(math))
     env.update({
-        '+': op.add,
-        '-': op.sub,
-        '*': op.mul,
-        '/': op.div,
+        '+': arithmetic('+'),
+        '-': arithmetic('-'),
+        '*': arithmetic('*'),
+        '/': arithmetic('/'),
         '>': op.gt,
         '<': op.lt,
         '>=': op.ge,
@@ -148,7 +175,7 @@ def standard_env():
         'begin': lambda *x: x[-1],
         'car': lambda x: x[0],
         'cdr': lambda x: x[1:],
-        'cons': lambda x, y: x + y,
+        'cons': lambda x, y: [x] + y,
         'eq?': op.is_,
         'equal?': op.eq,
         'length': len,
@@ -250,43 +277,44 @@ def parse(inport):
 def eval(exp, env=global_env):
     "Evaluates a expression in context of \
     an environment"
-    if isinstance(exp, Symbol):
-        return env.find(exp)[exp]
-    elif not isinstance(exp, list):
-        # Return as is, if not an expression
-        return exp
-    elif exp[0] == QUOTE:
-        (_, _exp) = exp
-        return _exp
-    elif exp[0] == DEFINE:
-        (_, variable, value) = exp
-        env[variable] = eval(value, env)
-        return None
-    elif exp[0] == IF:
-        (_, test, conseq, alt) = exp
-        exp = conseq if eval(test, env) else alt
-    elif exp[0] == SET:
-        (_, var, val) = exp
-        env.find(var)[var] = eval(val, env)
-        return None
-    elif exp[0] == LAMBDA:
-        (_, params, body) = exp
-        return Procedure(params, body, env)
-    elif exp[0] == BEGIN:
-        for _exp in exp[1:-1]:
-            eval(_exp, env)
-        exp = exp[-1]
-    else:
-        # Parse a procedure call
-        args = [eval(arg, env) for arg in exp]
-        proc = args.pop(0)
-        if isinstance(proc, Procedure):
-            # Using exp and env together as accumulators
-            # to remove recursion limit
-            exp = proc.body
-            env = Env(proc.params, args, proc.env)
+    while True:
+        if isinstance(exp, Symbol):
+            return env.find(exp)[exp]
+        elif not isinstance(exp, list):
+            # Return as is, if not an expression
+            return exp
+        elif exp[0] == QUOTE:
+            (_, _exp) = exp
+            return _exp
+        elif exp[0] == DEFINE:
+            (_, variable, value) = exp
+            env[variable] = eval(value, env)
+            return None
+        elif exp[0] == IF:
+            (_, test, conseq, alt) = exp
+            exp = conseq if eval(test, env) else alt
+        elif exp[0] == SET:
+            (_, var, val) = exp
+            env.find(var)[var] = eval(val, env)
+            return None
+        elif exp[0] == LAMBDA:
+            (_, params, body) = exp
+            return Procedure(params, body, env)
+        elif exp[0] == BEGIN:
+            for _exp in exp[1:-1]:
+                eval(_exp, env)
+                exp = exp[-1]
         else:
-            return proc(*args)
+            # Parse a procedure call
+            args = [eval(arg, env) for arg in exp]
+            proc = args.pop(0)
+            if isinstance(proc, Procedure):
+                # Using exp and env together as accumulators
+                # to remove recursion limit
+                exp = proc.body
+                env = Env(proc.params, args, proc.env)
+            else:
+                return proc(*args)
 
 
 def schemeify(val):
