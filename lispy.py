@@ -98,6 +98,8 @@ QUASIQUOTE, UNQUOTE, UNQUOTESPLICING = map(
     Sym, "quasiquote   unquote   unquote-splicing".split()
 )
 
+APPEND, CONS = map(Sym, "append cons".split())
+
 QUOTES = {
     "'": QUOTE,
     "`": QUASIQUOTE,
@@ -270,8 +272,10 @@ def atom(token):
 def parse(inport):
     "Parse a scheme expression from input port"
     if isinstance(inport, str):
+        # if input is simply a string, convert it
+        # to an inport compatible form
         inport = InPort(StringIO.StringIO(inport))
-    return read(inport)
+    return expand(read(inport), toplevel=True)
 
 
 def eval(exp, env=global_env):
@@ -315,6 +319,99 @@ def eval(exp, env=global_env):
                 env = Env(proc.params, args, proc.env)
             else:
                 return proc(*args)
+
+
+def require(exp, predicate, message=None):
+    "Raise a syntax error if predicate is false"
+    if not predicate:
+        raise SyntaxError(schemeify(exp) + " => " + message)
+
+
+def is_pair(x):
+    return x != [] and isinstance(x, list)
+
+
+def expand_quasiquote(exp):
+    """Expand `exp => 'exp; `,exp => exp; `(,@exp y) => (append exp y) """
+    if not is_pair(exp):
+        return [QUOTE, exp]
+    require(exp, exp[0] is not UNQUOTESPLICING, "can't splice here")
+    if exp[0] is UNQUOTE:
+        require(exp, len(exp) == 2)
+        return exp[1]
+    elif is_pair(exp[0]) and exp[0][0] is UNQUOTESPLICING:
+        require(exp[0], len(exp[0]) == 2)
+        return [APPEND, exp[0][1], expand_quasiquote(exp[1:])]
+    else:
+        return [CONS,
+                expand_quasiquote(exp[0]),
+                expand_quasiquote(exp[1:])]
+
+
+def expand(exp, toplevel=False):
+    "Walk tree of exp, making optimizations/fixes, and signaling SyntaxError."
+    require(exp, exp != [])                    # () => Error
+
+    if not isinstance(exp, list):                 # constant => unchanged
+        return exp
+
+    elif exp[0] is QUOTE:                 # (quote exp)
+        require(exp, len(exp) == 2)
+        return exp
+
+    elif exp[0] is IF:
+        if len(exp) == 3:
+            exp = exp + [None]     # (if t c) => (if t c None)
+
+        require(exp, len(exp) == 4)
+        return map(expand, exp)
+
+    elif exp[0] is SET:
+        require(exp, len(exp) == 3)
+        var = exp[1]                       # (set! non-var exp) => Error
+        require(exp, isinstance(var, Symbol), "can set! only a symbol")
+        return [SET, var, expand(exp[2])]
+
+    elif exp[0] is DEFINE:
+        require(exp, len(exp) >= 3)
+        _def, v, body = exp[0], exp[1], exp[2:]
+
+        if isinstance(v, list) and v:           # (define (f args) body)
+            f, args = v[0], v[1:]        # => (define f (lambda (args) body))
+            return expand([_def, f, [LAMBDA, args]+body])
+        else:
+            # (define non-var/list eexpp) => Error
+            require(exp, len(exp) == 3, "3 args expected")
+            require(exp, isinstance(v, Symbol), "can define only a symbol")
+            _exp = expand(exp[2])
+            return [DEFINE, v, _exp]
+
+    elif exp[0] is BEGIN:
+        if len(exp) == 1:
+            return None        # (begin) => None
+        else:
+            return [expand(expi, toplevel) for expi in exp]
+
+    elif exp[0] is LAMBDA:                # (lambda (exp) e1 e2)
+        # => (lambda (exp) (begin e1 e2))
+        require(exp, len(exp) >= 3)
+        vars, body = exp[1], exp[2:]
+
+        check1 = (isinstance(vars, list) and
+                  all(isinstance(v, Symbol) for v in vars))
+        check2 = isinstance(vars, Symbol)
+        pred = check1 or check2
+        require(exp, pred, "illegal lambda argument list")
+
+        exp = body[0] if len(body) == 1 else [BEGIN] + body
+        return [LAMBDA, vars, expand(exp)]
+
+    elif exp[0] is QUASIQUOTE:            # `exp => expand_quasiquote(exp)
+        require(exp, len(exp) == 2)
+        return expand_quasiquote(exp[1])
+
+    else:
+        return map(expand, exp)            # (f arg...) => expand each
 
 
 def schemeify(val):
