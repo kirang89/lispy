@@ -1,0 +1,25 @@
+#+Title: Todo's
+#+TODO: FEATURE | DOING | DONE
+#+TODO: BUG | FIXED
+#+Author: Kiran Gangadharan
+
+** Features
+***** DONE Deal with >2 args for arithmetic ops in Scheme
+***** DONE Tail recursion
+***** DONE Better error reporting
+***** DONE Escape whitespaces
+***** FEATURE Evaluate code in input file
+***** FEATURE Package lispy as an executable
+***** FEATURE Support for 'let'
+***** FEATURE Support for 'cond'
+***** DOING Scheme data types
+***** DOING Support for comments
+***** FEATURE Support dot operator for args
+      - ex: (lambda (arg1 arg2 . rest) ...)
+
+***** FEATURE Look into [[http://www.r6rs.org/][R6RS]] for further ideas/implementations
+
+** Bugs
+***** BUG Comments parsed incorrectly
+***** BUG Blank input gets parsed
+***** BUG Parse issue with cons function
