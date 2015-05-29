@@ -3,6 +3,10 @@
 #
 
 import sys
+import math
+import cmath
+import operator as op
+
 import re
 import StringIO
 
@@ -154,50 +158,9 @@ def arithmetic(op):
     return wrapper
 
 
-def standard_env():
-    "An environment with some Scheme standard procedures."
-    import math
-    import operator as op
-    env = Env()
-    # Add math functions to env
-    env.update(vars(math))
-    env.update({
-        '+': arithmetic('+'),
-        '-': arithmetic('-'),
-        '*': arithmetic('*'),
-        '/': arithmetic('/'),
-        '>': op.gt,
-        '<': op.lt,
-        '>=': op.ge,
-        '<=': op.le,
-        '=': op.eq,
-        'abs': abs,
-        'append': op.add,
-        'apply': apply,
-        'begin': lambda *x: x[-1],
-        'car': lambda x: x[0],
-        'cdr': lambda x: x[1:],
-        'cons': lambda x, y: [x] + y,
-        'eq?': op.is_,
-        'equal?': op.eq,
-        'length': len,
-        'list': lambda *x: list(x),
-        'list?': lambda x: isinstance(x, list),
-        'map': map,
-        'max': max,
-        'min': min,
-        'not': op.not_,
-        'null?': lambda x: x == [],
-        'number?': lambda x: isinstance(x, (int, float)),
-        'procedure?': callable,
-        'round':   round,
-        'symbol?': lambda x: isinstance(x, Symbol),
-        'call/cc': callcc
-    })
-    return env
-
-
-global_env = standard_env()
+def display(data, port):
+    "Emulate the display method in scheme"
+    return port.write(data if isinstance(data, str) else schemeify(data))
 
 
 def tokenize(string):
@@ -278,6 +241,69 @@ def parse(inport):
     return expand(read(inport), toplevel=True)
 
 
+def is_pair(x):
+    return x != [] and isinstance(x, list)
+
+
+def standard_env():
+    "An environment with some Scheme standard procedures."
+    env = Env()
+    # Add math functions to env
+    env.update(vars(math))
+    env.update(vars(cmath))
+    env.update({
+        '+': arithmetic('+'),
+        '-': arithmetic('-'),
+        '*': arithmetic('*'),
+        '/': arithmetic('/'),
+        '>': op.gt,
+        '<': op.lt,
+        '>=': op.ge,
+        '<=': op.le,
+        '=': op.eq,
+        'append': op.add,
+        'not': op.not_,
+        'abs': abs,
+        'apply': lambda proc, args: proc(*args),
+        'begin': lambda *x: x[-1],
+        'car': lambda x: x[0],
+        'cdr': lambda x: x[1:],
+        'cons': lambda x, y: [x] + y,
+        'length': len,
+        'list': lambda *x: list(x),
+        'map': map,
+        'max': max,
+        'min': min,
+        'eval': lambda x: eval(expand(x)),
+        'load': lambda filename: load(filename),
+        'open-input-file': open,
+        'close-input-port': lambda port: port.file.close(),
+        'open-output-file': lambda filename: open(filename, 'w'),
+        'close-output-port': lambda port: port.close(),
+        'read-char': readchar,
+        'read': read,
+        'write': lambda data, port=sys.stdout: port.write(schemeify(data)),
+        'display': display,
+        'list?': lambda x: isinstance(x, list),
+        'equal?': op.eq,
+        'eq?': op.is_,
+        'null?': lambda x: x == [],
+        'number?': lambda x: isinstance(x, (int, float)),
+        'boolean?': lambda x: isinstance(x, bool),
+        'procedure?': callable,
+        'symbol?': lambda x: isinstance(x, Symbol),
+        'eof-object?': lambda x: x is EOF,
+        'pair?': is_pair,
+        'port?': lambda x: isinstance(x, file),
+        'round':   round,
+        'call/cc': callcc,
+    })
+    return env
+
+
+global_env = standard_env()
+
+
 def eval(exp, env=global_env):
     "Evaluates a expression in context of \
     an environment"
@@ -325,10 +351,6 @@ def require(exp, predicate, message=None):
     "Raise a syntax error if predicate is false"
     if not predicate:
         raise SyntaxError(schemeify(exp) + " => " + message)
-
-
-def is_pair(x):
-    return x != [] and isinstance(x, list)
 
 
 def expand_quasiquote(exp):
@@ -456,9 +478,7 @@ def repl(prompt="lispy> ", inport=InPort(sys.stdin), out=sys.stdout):
             if result and out:
                 print >> out, schemeify(result)
         except Exception as e:
-            import traceback
-            print traceback.format_exc()
-            # print "{}: {}".format(type(e).__name__, e)
+            print "{}: {}".format(type(e).__name__, e)
 
 
 if __name__ == '__main__':
