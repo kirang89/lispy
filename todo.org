@@ -23,3 +23,6 @@
 ***** BUG Comments parsed incorrectly
 ***** BUG Blank input gets parsed
 ***** BUG Parse issue with cons function
+***** BUG No error raised when user-defined function takes more than it's specified arguments
+      - ex: (define twice (lambda (x) (* 2 x))
+	now try (twice 2) and (twice 2 2 2)
