@@ -333,7 +333,7 @@ def eval(exp, env=global_env):
         elif exp[0] == BEGIN:
             for _exp in exp[1:-1]:
                 eval(_exp, env)
-                exp = exp[-1]
+            exp = exp[-1]
         else:
             # Parse a procedure call
             args = [eval(arg, env) for arg in exp]
@@ -350,7 +350,11 @@ def eval(exp, env=global_env):
 def require(exp, predicate, message=None):
     "Raise a syntax error if predicate is false"
     if not predicate:
-        raise SyntaxError(schemeify(exp) + " => " + message)
+        result = schemeify(exp)
+        if result and message:
+            raise SyntaxError(result + " => " + message)
+        else:
+            raise SyntaxError()
 
 
 def expand_quasiquote(exp):
