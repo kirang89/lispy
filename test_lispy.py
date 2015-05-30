@@ -4,6 +4,7 @@
 
 import unittest
 from lispy import parse, eval, schemeify
+from testcases import testcases
 
 
 class LispyTest(unittest.TestCase):
@@ -72,3 +73,22 @@ class LispyTest(unittest.TestCase):
         eval(parse(exp2))
         result = eval(parse(exp3))
         self.assertEqual(result, 16)
+
+    def test_core(self):
+        fails = 0
+        for (x, expected) in testcases:
+            try:
+                result = eval(parse(x))
+                ok = (result == expected)
+            except Exception as e:
+                exc_check = type(e) == type(expected) and e.msg == expected.msg
+                ok = isinstance(e, Exception) and exc_check
+            if not ok:
+                fails += 1
+                print "Test ==> ", x
+                print "Result ==> raises ", type(e).__name__, e
+                print 'Expected ==>', expected
+                print ""
+        print '%d out of %d tests fail.' % (fails, len(testcases))
+
+        self.assertEqual(fails, 0)
